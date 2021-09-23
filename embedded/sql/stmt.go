@@ -1295,7 +1295,7 @@ type SelectStmt struct {
 type ScanSpecs struct {
 	index         *Index
 	rangesByColID map[uint32]*typedValueRange
-	cmp           Comparison
+	descOrder     bool
 }
 
 func (stmt *SelectStmt) Limit() int {
@@ -1486,7 +1486,7 @@ func (stmt *SelectStmt) genScanSpecs(e *Engine, snap *store.Snapshot, implicitDB
 	}
 
 	var sortingIndex *Index
-	cmp := GreaterOrEqualTo
+	var descOrder bool
 
 	if stmt.orderBy == nil {
 		if preferredIndex == nil {
@@ -1511,11 +1511,7 @@ func (stmt *SelectStmt) genScanSpecs(e *Engine, snap *store.Snapshot, implicitDB
 			}
 		}
 
-		if stmt.orderBy[0].order == AscOrder {
-			cmp = GreaterOrEqualTo
-		} else {
-			cmp = LowerOrEqualTo
-		}
+		descOrder = stmt.orderBy[0].descOrder
 	}
 
 	if sortingIndex == nil {
@@ -1525,7 +1521,7 @@ func (stmt *SelectStmt) genScanSpecs(e *Engine, snap *store.Snapshot, implicitDB
 	return &ScanSpecs{
 		index:         sortingIndex,
 		rangesByColID: rangesByColID,
-		cmp:           cmp,
+		descOrder:     descOrder,
 	}, nil
 }
 
@@ -1600,16 +1596,9 @@ type JoinSpec struct {
 	indexOn  []string
 }
 
-type Order int
-
-const (
-	AscOrder Order = iota
-	DescOrder
-)
-
 type OrdCol struct {
-	sel   *ColSelector
-	order Order
+	sel       *ColSelector
+	descOrder bool
 }
 
 type Selector interface {
