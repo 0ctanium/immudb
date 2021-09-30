@@ -442,7 +442,11 @@ func (d *db) SQLQueryPrepared(stmt *sql.SelectStmt, namedParams []*schema.NamedP
 
 	res := &schema.SQLQueryResult{Columns: cols}
 
-	for l := 0; l < MaxKeyScanLimit; l++ {
+	for l := 0; ; l++ {
+		if l == MaxKeyScanLimit {
+			return res, ErrMaxKeyScanLimitExceeded
+		}
+
 		row, err := r.Read()
 		if err == sql.ErrNoMoreRows {
 			break
@@ -478,10 +482,6 @@ func (d *db) SQLQueryPrepared(stmt *sql.SelectStmt, namedParams []*schema.NamedP
 func (d *db) SQLQueryRowReader(stmt *sql.SelectStmt, renewSnapshot bool) (sql.RowReader, error) {
 	if stmt == nil {
 		return nil, ErrIllegalArguments
-	}
-
-	if stmt.Limit() > MaxKeyScanLimit {
-		return nil, ErrMaxKeyScanLimitExceeded
 	}
 
 	d.mutex.RLock()
