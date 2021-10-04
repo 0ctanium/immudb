@@ -3786,3 +3786,145 @@ func TestEncodeAsKeyEdgeCases(t *testing.T) {
 		require.ErrorIs(t, err, ErrMaxLengthExceeded)
 	})
 }
+
+func TestIndexingNullableColumns(t *testing.T) {
+	catalogStore, err := store.Open("catalog_indexing_nullable", store.DefaultOptions())
+	require.NoError(t, err)
+	defer os.RemoveAll("catalog_indexing_nullable")
+
+	dataStore, err := store.Open("sqldata_indexing_nullable", store.DefaultOptions())
+	require.NoError(t, err)
+	defer os.RemoveAll("sqldata_indexing_nullable")
+
+	engine, err := NewEngine(catalogStore, dataStore, DefaultOptions().WithPrefix(sqlPrefix))
+	require.NoError(t, err)
+	defer engine.Close()
+
+	_, err = engine.ExecStmt("CREATE DATABASE db1", nil, true)
+	require.NoError(t, err)
+
+	err = engine.UseDatabase("db1")
+	require.NoError(t, err)
+
+	exec := func(t *testing.T, stmt string) *ExecSummary {
+		ret, err := engine.ExecStmt(stmt, nil, true)
+		require.NoError(t, err)
+		return ret
+	}
+	query := func(t *testing.T, stmt string, expectedRows ...*Row) {
+		reader, err := engine.QueryStmt(stmt, nil, true)
+		require.NoError(t, err)
+
+		for _, expectedRow := range expectedRows {
+			row, err := reader.Read()
+			require.NoError(t, err)
+
+			require.EqualValues(t, expectedRow, row)
+		}
+
+		_, err = reader.Read()
+		require.ErrorIs(t, err, ErrNoMoreRows)
+
+		err = reader.Close()
+		require.NoError(t, err)
+	}
+
+	t1Row := func(id int64, v1 interface{}, v2 interface{}) *Row {
+		ret := &Row{
+			Values: map[string]TypedValue{
+				EncodeSelector("", "db1", "table1", "id"): &Number{val: id},
+			},
+		}
+
+		switch v1 := v1.(type) {
+		case nil:
+			ret.Values[EncodeSelector("", "db1", "table1", "v1")] = &NullValue{t: IntegerType}
+		case int:
+			ret.Values[EncodeSelector("", "db1", "table1", "v1")] = &Number{val: int64(v1)}
+		}
+
+		switch v2 := v2.(type) {
+		case nil:
+			ret.Values[EncodeSelector("", "db1", "table1", "v2")] = &NullValue{t: VarcharType}
+		case string:
+			ret.Values[EncodeSelector("", "db1", "table1", "v2")] = &Varchar{val: v2}
+		}
+
+		return ret
+	}
+
+	exec(t, `
+		CREATE TABLE table1 (
+			id INTEGER AUTO_INCREMENT,
+			v1 INTEGER,
+			v2 VARCHAR[16],
+			PRIMARY KEY(id)
+		)
+	`)
+	exec(t, "CREATE INDEX ON table1 (v1, v2)")
+	query(t, "SELECT * FROM table1 USE INDEX ON(v1,v2)")
+
+	t.Run("succeed adding non-null columns", func(t *testing.T) {
+		exec(t, "INSERT INTO table1(v1,v2) VALUES(1, '2')")
+		query(t,
+			"SELECT * FROM table1 USE INDEX ON(v1,v2)",
+			t1Row(1, 1, "2"),
+		)
+
+		exec(t, "INSERT INTO table1(v1,v2) VALUES(1, '3')")
+		query(t,
+			"SELECT * FROM table1 USE INDEX ON(v1,v2) WHERE v1=1 ORDER BY v2",
+			t1Row(1, 1, "2"),
+			t1Row(2, 1, "3"),
+		)
+	})
+
+	t.Run("succeed adding null columns as the second indexed column", func(t *testing.T) {
+
+		exec(t, "INSERT INTO table1(v1,v2) VALUES(1, null)")
+		query(t,
+			"SELECT * FROM table1 USE INDEX ON(v1,v2) WHERE v1=1 ORDER BY v2",
+			t1Row(3, 1, nil),
+			t1Row(1, 1, "2"),
+			t1Row(2, 1, "3"),
+		)
+
+		exec(t, "INSERT INTO table1(v1,v2) VALUES(1, null)")
+		query(t,
+			"SELECT * FROM table1 USE INDEX ON(v1,v2) WHERE v1=1 ORDER BY v2",
+			t1Row(3, 1, nil),
+			t1Row(4, 1, nil),
+			t1Row(1, 1, "2"),
+			t1Row(2, 1, "3"),
+		)
+
+		exec(t, "INSERT INTO table1(v1,v2) VALUES(2, null)")
+		query(t,
+			"SELECT * FROM table1 USE INDEX ON(v1,v2) WHERE v1=1 ORDER BY v2",
+			t1Row(3, 1, nil),
+			t1Row(4, 1, nil),
+			t1Row(1, 1, "2"),
+			t1Row(2, 1, "3"),
+		)
+	})
+
+	t.Run("succeed adding null columns as the first indexed column", func(t *testing.T) {
+		exec(t, "INSERT INTO table1(v1,v2) VALUES(null, '4')")
+		query(t,
+			"SELECT * FROM table1 USE INDEX ON(v1,v2) WHERE v1=1 ORDER BY v2",
+			t1Row(3, 1, nil),
+			t1Row(4, 1, nil),
+			t1Row(1, 1, "2"),
+			t1Row(2, 1, "3"),
+		)
+
+		query(t,
+			"SELECT * FROM table1 USE INDEX ON(v1,v2) WHERE v1=1 ORDER BY v2",
+			t1Row(3, 1, nil),
+			t1Row(4, 1, nil),
+			t1Row(1, 1, "2"),
+			t1Row(2, 1, "3"),
+		)
+	})
+
+}
