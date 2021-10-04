@@ -544,14 +544,18 @@ func (e *Engine) loadTables(db *Database, catalogSnap, dataSnap *store.Snapshot)
 				return err
 			}
 
-			if len(encMaxPK) != 8 {
+			if len(encMaxPK) != 9 {
+				return ErrCorruptedData
+			}
+
+			if encMaxPK[0] != KeyValPrefixNotNull {
 				return ErrCorruptedData
 			}
 
 			// map to signed integer space
-			encMaxPK[0] ^= 0x80
+			encMaxPK[1] ^= 0x80
 
-			table.maxPK = int64(binary.BigEndian.Uint64(encMaxPK))
+			table.maxPK = int64(binary.BigEndian.Uint64(encMaxPK[1:]))
 		}
 	}
 
