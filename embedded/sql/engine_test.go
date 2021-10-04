@@ -433,7 +433,7 @@ func TestUpsertInto(t *testing.T) {
 	})
 
 	_, err = engine.ExecStmt("UPSERT INTO table1 (Id, Title, Active) VALUES (1, 'some title', false)", nil, true)
-	require.ErrorIs(t, err, ErrIndexedColumnCanNotBeNull)
+	require.NoError(t, err)
 
 	_, err = engine.ExecStmt("UPSERT INTO table1 (Id, Title, Amount, Active) VALUES (1, 'some title', 100, false)", nil, true)
 	require.NoError(t, err)
@@ -2173,16 +2173,16 @@ func TestOrderBy(t *testing.T) {
 	params := make(map[string]interface{}, 1)
 	params["age"] = nil
 	_, err = engine.ExecStmt("INSERT INTO table1 (id, title, age) VALUES (1, 'title', @age)", params, true)
-	require.Equal(t, ErrIndexedColumnCanNotBeNull, err)
+	require.NoError(t, err)
 
-	_, err = engine.ExecStmt("INSERT INTO table1 (id, title) VALUES (1, 'title')", nil, true)
-	require.Equal(t, ErrIndexedColumnCanNotBeNull, err)
+	_, err = engine.ExecStmt("INSERT INTO table1 (id, title) VALUES (2, 'title')", nil, true)
+	require.NoError(t, err)
 
 	rowCount := 1
 
 	for i := 0; i < rowCount; i++ {
 		params := make(map[string]interface{}, 3)
-		params["id"] = i
+		params["id"] = i + 3
 		params["title"] = fmt.Sprintf("title%d", i)
 		params["age"] = 40 + i
 
@@ -2200,13 +2200,29 @@ func TestOrderBy(t *testing.T) {
 	require.Equal(t, "table1", orderBy[0].Table)
 	require.Equal(t, "db1", orderBy[0].Database)
 
+	row, err := r.Read()
+	require.NoError(t, err)
+	require.Len(t, row.Values, 3)
+
+	require.Equal(t, int64(1), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+	require.Equal(t, "title", row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
+	require.Nil(t, row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
+
+	row, err = r.Read()
+	require.NoError(t, err)
+	require.Len(t, row.Values, 3)
+
+	require.Equal(t, int64(2), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+	require.Equal(t, "title", row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
+	require.Nil(t, row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
+
 	for i := 0; i < rowCount; i++ {
 		row, err := r.Read()
 		require.NoError(t, err)
 		require.NotNil(t, row)
 		require.Len(t, row.Values, 3)
 
-		require.Equal(t, int64(i), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+		require.Equal(t, int64(i+3), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
 		require.Equal(t, fmt.Sprintf("title%d", i), row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
 		require.Equal(t, int64(40+i), row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
 	}
@@ -2217,13 +2233,29 @@ func TestOrderBy(t *testing.T) {
 	r, err = engine.QueryStmt("SELECT id, title, age FROM table1 ORDER BY age", nil, true)
 	require.NoError(t, err)
 
+	row, err = r.Read()
+	require.NoError(t, err)
+	require.Len(t, row.Values, 3)
+
+	require.Equal(t, int64(1), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+	require.Equal(t, "title", row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
+	require.Nil(t, row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
+
+	row, err = r.Read()
+	require.NoError(t, err)
+	require.Len(t, row.Values, 3)
+
+	require.Equal(t, int64(2), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+	require.Equal(t, "title", row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
+	require.Nil(t, row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
+
 	for i := 0; i < rowCount; i++ {
 		row, err := r.Read()
 		require.NoError(t, err)
 		require.NotNil(t, row)
 		require.Len(t, row.Values, 3)
 
-		require.Equal(t, int64(i), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+		require.Equal(t, int64(i+3), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
 		require.Equal(t, fmt.Sprintf("title%d", i), row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
 		require.Equal(t, int64(40+i), row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
 	}
@@ -2240,10 +2272,26 @@ func TestOrderBy(t *testing.T) {
 		require.NotNil(t, row)
 		require.Len(t, row.Values, 3)
 
-		require.Equal(t, int64(rowCount-1-i), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+		require.Equal(t, int64(rowCount-1-i+3), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
 		require.Equal(t, fmt.Sprintf("title%d", rowCount-1-i), row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
 		require.Equal(t, int64(40-(rowCount-1-i)), row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
 	}
+
+	row, err = r.Read()
+	require.NoError(t, err)
+	require.Len(t, row.Values, 3)
+
+	require.Equal(t, int64(2), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+	require.Equal(t, "title", row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
+	require.Nil(t, row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
+
+	row, err = r.Read()
+	require.NoError(t, err)
+	require.Len(t, row.Values, 3)
+
+	require.Equal(t, int64(1), row.Values[EncodeSelector("", "db1", "table1", "id")].Value())
+	require.Equal(t, "title", row.Values[EncodeSelector("", "db1", "table1", "title")].Value())
+	require.Nil(t, row.Values[EncodeSelector("", "db1", "table1", "age")].Value())
 
 	err = r.Close()
 	require.NoError(t, err)
@@ -3701,7 +3749,7 @@ func TestUnmapIndexEntry(t *testing.T) {
 	require.Nil(t, encPKVals)
 
 	encPKVals, err = e.unmapIndexEntry(&Index{id: PKIndexID, unique: true}, []byte(
-		"e-prefix.P.a",
+		"e-prefix.P.\x01a",
 	))
 	require.ErrorIs(t, err, ErrCorruptedData)
 	require.Nil(t, encPKVals)
@@ -3711,8 +3759,10 @@ func TestUnmapIndexEntry(t *testing.T) {
 		0x01, 0x02, 0x03, 0x04,
 		0x11, 0x12, 0x13, 0x14,
 		0x00, 0x00, 0x00, 0x02,
+		0x01,
 		'a', 'b', 'c', 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 3,
+		0x01,
 		'w', 'x', 'y', 'z',
 		0, 0, 0, 4,
 	)
@@ -3741,7 +3791,7 @@ func TestUnmapIndexEntry(t *testing.T) {
 
 	encPKVals, err = e.unmapIndexEntry(sIndex, fullValue)
 	require.NoError(t, err)
-	require.EqualValues(t, []byte{'w', 'x', 'y', 'z', 0, 0, 0, 4}, encPKVals)
+	require.EqualValues(t, []byte{1, 'w', 'x', 'y', 'z', 0, 0, 0, 4}, encPKVals)
 }
 
 func TestEncodeAsKeyEdgeCases(t *testing.T) {
