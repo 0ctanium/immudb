@@ -519,6 +519,7 @@ func (stmt *UpsertIntoStmt) compileUsing(e *Engine, implicitDB *Database, params
 		for colID, col := range table.colsByID {
 			colPos, specified := selPosByColID[colID]
 			if !specified {
+				// TODO: Default values
 				if col.notNull {
 					return nil, ErrNotNullableColumnCannotBeNull
 				}
@@ -703,7 +704,7 @@ func (stmt *UpsertIntoStmt) compileUsing(e *Engine, implicitDB *Database, params
 			for i, col := range index.cols {
 				rval, notNull := valuesByColID[col.id]
 				if !notNull {
-					return nil, ErrIndexedColumnCanNotBeNull
+					rval = &NullValue{}
 				}
 
 				encVal, err := EncodeAsKey(rval.Value(), col.colType, col.MaxLen())
@@ -816,20 +817,15 @@ func (e *Engine) deleteIndexEntriesFor(
 		sameIndexKey := true
 
 		for i, col := range index.cols {
-			currVal, notNull := currValuesByColID[col.id]
-			if !notNull {
-				return nil, ErrCorruptedData
+			currVal := currValuesByColID[col.id]
+			newVal := newValuesByColID[col.id]
+
+			r, err := currVal.Compare(newVal)
+			if err != nil {
+				return nil, err
 			}
 
-			newVal, notNull := newValuesByColID[col.id]
-			if notNull {
-				r, err := currVal.Compare(newVal)
-				if err != nil {
-					return nil, err
-				}
-
-				sameIndexKey = sameIndexKey && r == 0
-			}
+			sameIndexKey = sameIndexKey && r == 0
 
 			encVal, _ := EncodeAsKey(currVal.Value(), col.colType, col.MaxLen())
 
