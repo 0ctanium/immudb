@@ -704,7 +704,7 @@ func (stmt *UpsertIntoStmt) compileUsing(e *Engine, implicitDB *Database, params
 			for i, col := range index.cols {
 				rval, notNull := valuesByColID[col.id]
 				if !notNull {
-					rval = &NullValue{}
+					rval = &NullValue{t: col.colType}
 				}
 
 				encVal, err := EncodeAsKey(rval.Value(), col.colType, col.MaxLen())
@@ -817,8 +817,15 @@ func (e *Engine) deleteIndexEntriesFor(
 		sameIndexKey := true
 
 		for i, col := range index.cols {
-			currVal := currValuesByColID[col.id]
-			newVal := newValuesByColID[col.id]
+			currVal, isNotNull := currValuesByColID[col.id]
+			if !isNotNull {
+				currVal = &NullValue{t: col.colType}
+			}
+
+			newVal, isNotNull := newValuesByColID[col.id]
+			if !isNotNull {
+				newVal = &NullValue{t: col.colType}
+			}
 
 			r, err := currVal.Compare(newVal)
 			if err != nil {
