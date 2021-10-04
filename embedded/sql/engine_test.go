@@ -3927,4 +3927,11 @@ func TestIndexingNullableColumns(t *testing.T) {
 		)
 	})
 
+	t.Run("succeed querying null columns using index", func(t *testing.T) {
+		query(t,
+			"SELECT * FROM table1 USE INDEX ON(v1,v2) WHERE v1=null",
+			t1Row(6, nil, "4"),
+		)
+	})
+
 }
