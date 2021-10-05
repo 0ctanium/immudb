@@ -3879,28 +3879,43 @@ func TestIndexingNullableColumns(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	t1Row := func(id int64, v1 interface{}, v2 interface{}) *Row {
-		ret := &Row{
+	colVal := func(t *testing.T, v interface{}, tp SQLValueType) TypedValue {
+		switch v := v.(type) {
+		case nil:
+			return &NullValue{t: tp}
+		case int:
+			return &Number{val: int64(v)}
+		case string:
+			return &Varchar{val: v}
+		case []byte:
+			return &Blob{val: v}
+		case bool:
+			return &Bool{val: v}
+		}
+		require.Fail(t, "Unknown type of value")
+		return nil
+	}
+
+	t1Row := func(id int64, v1, v2 interface{}) *Row {
+		return &Row{
 			Values: map[string]TypedValue{
 				EncodeSelector("", "db1", "table1", "id"): &Number{val: id},
+				EncodeSelector("", "db1", "table1", "v1"): colVal(t, v1, IntegerType),
+				EncodeSelector("", "db1", "table1", "v2"): colVal(t, v2, VarcharType),
 			},
 		}
+	}
 
-		switch v1 := v1.(type) {
-		case nil:
-			ret.Values[EncodeSelector("", "db1", "table1", "v1")] = &NullValue{t: IntegerType}
-		case int:
-			ret.Values[EncodeSelector("", "db1", "table1", "v1")] = &Number{val: int64(v1)}
+	t2Row := func(id int64, v1, v2, v3, v4 interface{}) *Row {
+		return &Row{
+			Values: map[string]TypedValue{
+				EncodeSelector("", "db1", "table2", "id"): &Number{val: id},
+				EncodeSelector("", "db1", "table2", "v1"): colVal(t, v1, IntegerType),
+				EncodeSelector("", "db1", "table2", "v2"): colVal(t, v2, VarcharType),
+				EncodeSelector("", "db1", "table2", "v3"): colVal(t, v3, BooleanType),
+				EncodeSelector("", "db1", "table2", "v4"): colVal(t, v4, BLOBType),
+			},
 		}
-
-		switch v2 := v2.(type) {
-		case nil:
-			ret.Values[EncodeSelector("", "db1", "table1", "v2")] = &NullValue{t: VarcharType}
-		case string:
-			ret.Values[EncodeSelector("", "db1", "table1", "v2")] = &Varchar{val: v2}
-		}
-
-		return ret
 	}
 
 	exec(t, `
@@ -3984,4 +3999,51 @@ func TestIndexingNullableColumns(t *testing.T) {
 		)
 	})
 
+	t.Run("suceed creating table with two indexes", func(t *testing.T) {
+
+		exec(t, `
+			CREATE TABLE table2 (
+				id INTEGER AUTO_INCREMENT,
+				v1 INTEGER,
+				v2 VARCHAR[16],
+				v3 BOOLEAN,
+				v4 BLOB[15],
+				PRIMARY KEY(id)
+			)
+		`)
+
+		exec(t, "CREATE INDEX ON table2(v1, v2)")
+		exec(t, "CREATE UNIQUE INDEX ON table2(v3, v4)")
+
+		query(t, "SELECT * FROM table2 USE INDEX ON(v3,v4)")
+
+	})
+
+	t.Run("succeed inserting data on table with two indexes", func(t *testing.T) {
+		exec(t, "INSERT INTO table2(v1, v2, v3, v4) VALUES(null, null, null, null)")
+		query(t, "SELECT * FROM table2 USE INDEX ON(v1, v2)", t2Row(1, nil, nil, nil, nil))
+		query(t, "SELECT * FROM table2 USE INDEX ON(v3, v4)", t2Row(1, nil, nil, nil, nil))
+	})
+
+	t.Run("fail adding entries with duplicate with nulls", func(t *testing.T) {
+		_, err := engine.ExecStmt("INSERT INTO table2(v1, v2, v3, v4) VALUES(1, '2', null, null)", nil, true)
+		require.ErrorIs(t, err, store.ErrKeyAlreadyExists)
+	})
+
+	t.Run("succeed scanning multiple rows on table with two indexes", func(t *testing.T) {
+		exec(t, `
+			INSERT INTO table2(v1,v2,v3,v4) VALUES
+			(1,'2',true, null),
+			(3,'4',null, x'1234'),
+			(5,'6',false, x'5678')
+		`)
+
+		// Order for boolean must be null -> false -> true
+		query(t, "SELECT * FROM table2 USE INDEX ON(v3, v4)",
+			t2Row(1, nil, nil, nil, nil),
+			t2Row(3, 3, "4", nil, []byte{0x12, 0x34}),
+			t2Row(4, 5, "6", false, []byte{0x56, 0x78}),
+			t2Row(2, 1, "2", true, nil),
+		)
+	})
 }
