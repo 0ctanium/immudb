@@ -374,7 +374,8 @@ func TestUpsertInto(t *testing.T) {
 	params = make(map[string]interface{}, 1)
 	params["id"] = []byte{1, 2, 3}
 	_, err = engine.ExecStmt("UPSERT INTO table1 (id, title, active) VALUES (@id, 'title1', true)", params, true)
-	require.Equal(t, ErrInvalidValue, err)
+	require.ErrorIs(t, err, ErrInvalidValue)
+	require.Contains(t, err.Error(), "is not an integer")
 
 	_, err = engine.ExecStmt("UPSERT INTO table1 (id, title, active) VALUES (1, @title, false)", nil, true)
 	require.Equal(t, ErrMissingParameter, err)
@@ -382,7 +383,8 @@ func TestUpsertInto(t *testing.T) {
 	params = make(map[string]interface{}, 1)
 	params["title"] = uint64(1)
 	_, err = engine.ExecStmt("UPSERT INTO table1 (id, title, active) VALUES (1, @title, true)", params, true)
-	require.Equal(t, ErrInvalidValue, err)
+	require.ErrorIs(t, err, ErrInvalidValue)
+	require.Contains(t, err.Error(), "is not a string")
 
 	summary, err := engine.ExecStmt("UPSERT INTO table1 (id, amount, active) VALUES (1, 10, true)", nil, true)
 	require.NoError(t, err)
@@ -448,7 +450,8 @@ func TestUpsertInto(t *testing.T) {
 	require.Equal(t, ErrDuplicatedColumn, err)
 
 	_, err = engine.ExecStmt("UPSERT INTO table1 (id, active) VALUES ('1', true)", nil, true)
-	require.Equal(t, ErrInvalidValue, err)
+	require.ErrorIs(t, err, ErrInvalidValue)
+	require.Contains(t, err.Error(), "is not an integer")
 
 	_, err = engine.ExecStmt("UPSERT INTO table1 (id, active) VALUES (NULL, false)", nil, true)
 	require.Equal(t, ErrPKCanNotBeNull, err)

@@ -136,7 +136,7 @@ func TestSQLExecAndQuery(t *testing.T) {
 		},
 		ProveSinceTx: 0,
 	})
-	require.Equal(t, sql.ErrInvalidValue, err)
+	require.ErrorIs(t, err, sql.ErrInvalidValue)
 
 	_, err = db.VerifiableSQLGet(&schema.VerifiableSQLGetRequest{
 		SqlGetRequest: &schema.SQLGetRequest{

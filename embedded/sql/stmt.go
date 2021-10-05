@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -576,7 +577,13 @@ func (stmt *UpsertIntoStmt) compileUsing(e *Engine, implicitDB *Database, params
 
 			encVal, err := EncodeAsKey(rval.Value(), col.colType, col.MaxLen())
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf(
+					"error setting value for column %s.%s.%s: %w",
+					table.db.Name(),
+					table.Name(),
+					col.Name(),
+					err,
+				)
 			}
 
 			if len(encVal) > maxKeyLen {
@@ -640,7 +647,13 @@ func (stmt *UpsertIntoStmt) compileUsing(e *Engine, implicitDB *Database, params
 
 			encVal, err := EncodeValue(rval.Value(), col.colType, col.MaxLen())
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf(
+					"error setting value for column %s.%s.%s: %w",
+					table.db.Name(),
+					table.Name(),
+					col.Name(),
+					err,
+				)
 			}
 
 			_, err = valbuf.Write(encVal)

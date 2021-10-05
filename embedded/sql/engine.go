@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"strconv"
@@ -916,7 +917,9 @@ func EncodeValue(val interface{}, colType SQLValueType, maxLen int) ([]byte, err
 		{
 			strVal, ok := val.(string)
 			if !ok {
-				return nil, ErrInvalidValue
+				return nil, fmt.Errorf(
+					"value is not a string: %w", ErrInvalidValue,
+				)
 			}
 
 			if maxLen > 0 && len(strVal) > maxLen {
@@ -934,7 +937,9 @@ func EncodeValue(val interface{}, colType SQLValueType, maxLen int) ([]byte, err
 		{
 			intVal, ok := val.(int64)
 			if !ok {
-				return nil, ErrInvalidValue
+				return nil, fmt.Errorf(
+					"value is not an integer: %w", ErrInvalidValue,
+				)
 			}
 
 			// map to unsigned integer space
@@ -949,7 +954,9 @@ func EncodeValue(val interface{}, colType SQLValueType, maxLen int) ([]byte, err
 		{
 			boolVal, ok := val.(bool)
 			if !ok {
-				return nil, ErrInvalidValue
+				return nil, fmt.Errorf(
+					"value is not a boolean: %w", ErrInvalidValue,
+				)
 			}
 
 			// len(v) + v
@@ -968,7 +975,9 @@ func EncodeValue(val interface{}, colType SQLValueType, maxLen int) ([]byte, err
 			if val != nil {
 				v, ok := val.([]byte)
 				if !ok {
-					return nil, ErrInvalidValue
+					return nil, fmt.Errorf(
+						"value is not a blob: %w", ErrInvalidValue,
+					)
 				}
 				blobVal = v
 			}
@@ -1016,7 +1025,9 @@ func EncodeAsKey(val interface{}, colType SQLValueType, maxLen int) ([]byte, err
 		{
 			strVal, ok := val.(string)
 			if !ok {
-				return nil, ErrInvalidValue
+				return nil, fmt.Errorf(
+					"value is not a string: %w", ErrInvalidValue,
+				)
 			}
 
 			if len(strVal) > maxLen {
@@ -1039,7 +1050,9 @@ func EncodeAsKey(val interface{}, colType SQLValueType, maxLen int) ([]byte, err
 
 			intVal, ok := val.(int64)
 			if !ok {
-				return nil, ErrInvalidValue
+				return nil, fmt.Errorf(
+					"value is not an integer: %w", ErrInvalidValue,
+				)
 			}
 
 			// v
@@ -1059,7 +1072,9 @@ func EncodeAsKey(val interface{}, colType SQLValueType, maxLen int) ([]byte, err
 
 			boolVal, ok := val.(bool)
 			if !ok {
-				return nil, ErrInvalidValue
+				return nil, fmt.Errorf(
+					"value is not a boolean: %w", ErrInvalidValue,
+				)
 			}
 
 			// v
@@ -1075,7 +1090,9 @@ func EncodeAsKey(val interface{}, colType SQLValueType, maxLen int) ([]byte, err
 		{
 			blobVal, ok := val.([]byte)
 			if !ok {
-				return nil, ErrInvalidValue
+				return nil, fmt.Errorf(
+					"value is not a blob: %w", ErrInvalidValue,
+				)
 			}
 
 			if len(blobVal) > maxLen {
