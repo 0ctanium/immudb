@@ -39,6 +39,8 @@ coverage.txt
 .root*
 immudb.pid
 /data
+/embedded/sql/catalog_add_column
+/embedded/sql/sqldata_add_column
 
 # Vendor
 vendor
